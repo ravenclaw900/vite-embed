@@ -1,0 +1,12 @@
+[package]
+name = "vite-embed-macro"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+flate2 = "1.0.25"
+json = "0.12.4"
+quote = "1.0.23"

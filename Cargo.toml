@@ -1,0 +1,2 @@
+[workspace]
+members = ["vite-embed", "vite-embed-macro"]
