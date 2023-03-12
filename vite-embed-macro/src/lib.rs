@@ -106,7 +106,7 @@ pub fn vite_dev(tokens: TokenStream) -> TokenStream {
     );
 
     let output = quote! {
-        [vite_embed::EmbeddedFile { data: #html, asset_path: "index.html", compressed: false }]
+        [vite_embed::EmbeddedFile { data: #html, asset_path: "index.html", compressed: false }].as_slice()
     };
 
     TokenStream::from(output)
@@ -195,6 +195,6 @@ pub fn vite_prod(tokens: TokenStream) -> TokenStream {
     }
 
     quote! {
-        [vite_embed::EmbeddedFile {asset_path: "index.html", data: &[#(#compressed_html),*], compressed: true}, #(vite_embed::EmbeddedFile {asset_path: #file_names, data: &[#(#file_datas),*], compressed: #compressed_datas }),*]
+        [vite_embed::EmbeddedFile {asset_path: "index.html", data: &[#(#compressed_html),*], compressed: true}, #(vite_embed::EmbeddedFile {asset_path: #file_names, data: &[#(#file_datas),*], compressed: #compressed_datas }),*].as_slice()
     }.into()
 }
