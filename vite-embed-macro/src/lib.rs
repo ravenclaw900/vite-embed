@@ -24,14 +24,14 @@ fn parse_tokens_prod(tokens: TokenStream) -> MacroDataProd {
             for i in [sep1, sep2].into_iter().enumerate() {
                 verify_sep(i.1, (i.0, i.0 + 1))
             }
-            let manifest_path = PathBuf::from(
-                unwrap_string_lit(manifest_token)
-                    .replace("$CARGO_MANIFEST_DIR", env!("CARGO_MANIFEST_DIR")),
-            );
-            let html_path = PathBuf::from(
-                unwrap_string_lit(html_token)
-                    .replace("$CARGO_MANIFEST_DIR", env!("CARGO_MANIFEST_DIR")),
-            );
+            let manifest_path = PathBuf::from(unwrap_string_lit(manifest_token).replace(
+                "$CARGO_MANIFEST_DIR",
+                &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+            ));
+            let html_path = PathBuf::from(unwrap_string_lit(html_token).replace(
+                "$CARGO_MANIFEST_DIR",
+                &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+            ));
             let entry_point = unwrap_string_lit(entry_point_token);
             MacroDataProd {
                 manifest_path,
@@ -52,10 +52,10 @@ fn parse_tokens_dev(tokens: TokenStream) -> MacroDataDev {
         [TokenTree::Literal(html_token), TokenTree::Punct(sep1), TokenTree::Literal(entry_point_token)] =>
         {
             verify_sep(sep1, (0, 1));
-            let html_path = PathBuf::from(
-                unwrap_string_lit(html_token)
-                    .replace("$CARGO_MANIFEST_DIR", env!("CARGO_MANIFEST_DIR")),
-            );
+            let html_path = PathBuf::from(unwrap_string_lit(html_token).replace(
+                "$CARGO_MANIFEST_DIR",
+                &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+            ));
             let entry_point = unwrap_string_lit(entry_point_token);
             MacroDataDev {
                 html_path,
