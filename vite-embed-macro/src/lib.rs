@@ -120,7 +120,7 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
 
     let html = html.replace(
         "<!--vite-embed script injection-->",
-        &format!(r#"<script type="module" src="{}"></script>"#, file_names[0]),
+        &format!(r#"<script type="module" src="{}"></script>"#, file_names[1]),
     );
 
     let mut css_inject = String::new();
