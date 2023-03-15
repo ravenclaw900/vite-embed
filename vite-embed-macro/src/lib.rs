@@ -84,6 +84,7 @@ mod dev {
     }
 }
 
+#[cfg(feature = "prod")]
 #[proc_macro]
 pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
     use prod::{compress, parse_tokens_prod};
