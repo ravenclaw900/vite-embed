@@ -79,7 +79,9 @@ mod dev {
                     entry_point,
                 }
             }
-            _ => panic!("Expected format 'string literal'"),
+            _ => panic!(
+                r#"Expected format generate_vite_html_dev!("/path/to/index.html", "vite-entry-point.js")"#
+            ),
         }
     }
 }
@@ -218,7 +220,9 @@ mod prod {
                 }
             }
             _ => {
-                panic!("Expected format 'string literal (path), string literal, string literal (path)'")
+                panic!(
+                    r#"Expected format generate_vite_prod!("/path/to/manifest.json", "vite-entry-point", "/path/to/index.html")"#
+                )
             }
         }
     }
