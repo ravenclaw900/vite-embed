@@ -6,7 +6,11 @@ edition = "2021"
 [lib]
 proc-macro = true
 
+[features]
+prod = ["dep:json", "dep:flate2"]
+dev = []
+
 [dependencies]
-flate2 = "1.0.25"
-json = "0.12.4"
+flate2 = { version = "1.0.25", optional = true }
+json = { version = "0.12.4", optional = true }
 quote = "1.0.23"

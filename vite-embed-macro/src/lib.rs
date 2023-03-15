@@ -1,72 +1,6 @@
-use std::{fs, io::Write, path::PathBuf};
+use proc_macro::{Literal, Punct, TokenStream};
 
-use flate2::{write::GzEncoder, Compression};
-use proc_macro::{Literal, Punct, TokenStream, TokenTree};
-use quote::quote;
-
-struct MacroDataProd {
-    manifest_path: PathBuf,
-    entry_point: String,
-    html_path: PathBuf,
-}
-
-struct MacroDataDev {
-    html_path: PathBuf,
-    entry_point: String,
-}
-
-fn parse_tokens_prod(tokens: TokenStream) -> MacroDataProd {
-    let token_vec: Vec<_> = tokens.into_iter().collect();
-
-    match token_vec.as_slice() {
-        [TokenTree::Literal(manifest_token), TokenTree::Punct(sep1), TokenTree::Literal(entry_point_token), TokenTree::Punct(sep2), TokenTree::Literal(html_token)] =>
-        {
-            for i in [sep1, sep2].into_iter().enumerate() {
-                verify_sep(i.1, (i.0, i.0 + 1))
-            }
-            let manifest_path = PathBuf::from(unwrap_string_lit(manifest_token).replace(
-                "$CARGO_MANIFEST_DIR",
-                &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
-            ));
-            let html_path = PathBuf::from(unwrap_string_lit(html_token).replace(
-                "$CARGO_MANIFEST_DIR",
-                &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
-            ));
-            let entry_point = unwrap_string_lit(entry_point_token);
-            MacroDataProd {
-                manifest_path,
-                entry_point,
-                html_path,
-            }
-        }
-        _ => {
-            panic!("Expected format 'string literal (path), string literal, string literal (path)'")
-        }
-    }
-}
-
-fn parse_tokens_dev(tokens: TokenStream) -> MacroDataDev {
-    let token_vec: Vec<_> = tokens.into_iter().collect();
-
-    match token_vec.as_slice() {
-        [TokenTree::Literal(html_token), TokenTree::Punct(sep1), TokenTree::Literal(entry_point_token)] =>
-        {
-            verify_sep(sep1, (0, 1));
-            let html_path = PathBuf::from(unwrap_string_lit(html_token).replace(
-                "$CARGO_MANIFEST_DIR",
-                &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
-            ));
-            let entry_point = unwrap_string_lit(entry_point_token);
-            MacroDataDev {
-                html_path,
-                entry_point,
-            }
-        }
-        _ => panic!("Expected format 'string literal'"),
-    }
-}
-
-fn verify_sep(sep: &Punct, between: (usize, usize)) {
+pub(crate) fn verify_sep(sep: &Punct, between: (usize, usize)) {
     if sep.as_char() != ',' {
         panic!(
             "Expected ',' between arguments {} and {}",
@@ -75,7 +9,7 @@ fn verify_sep(sep: &Punct, between: (usize, usize)) {
     }
 }
 
-fn unwrap_string_lit(lit: &Literal) -> String {
+pub(crate) fn unwrap_string_lit(lit: &Literal) -> String {
     let mut lit_string = lit.to_string();
     if !lit_string.starts_with('"') || !lit_string.ends_with('"') {
         panic!("Invalid string argument {}", lit_string)
@@ -87,49 +21,81 @@ fn unwrap_string_lit(lit: &Literal) -> String {
     lit_string
 }
 
+#[cfg(feature = "dev")]
 #[proc_macro]
-pub fn vite_dev(tokens: TokenStream) -> TokenStream {
-    let macro_data = parse_tokens_dev(tokens);
+pub fn generate_vite_html_dev(tokens: TokenStream) -> TokenStream {
+    use dev::parse_tokens_html;
+    use quote::quote;
 
-    let Ok(html) = fs::read_to_string(&macro_data.html_path) else {
-        panic!("Couldn't read {:?} as string", macro_data.html_path)
-    };
+    let macro_data = parse_tokens_html(tokens);
+
+    let Ok(html) = std::fs::read_to_string(&macro_data.html_path) else {
+    panic!("Couldn't read {:?} as string", macro_data.html_path)
+};
 
     let html = html.replace(
-        "<!--vite-embed injection point-->",
+        "<!--vite-embed script injection-->",
         format!(
             r#"<script type="module" src="http://localhost:5173/@vite/client"></script>
-    <script type="module" src="http://localhost:5173/{}"></script>)"#,
+<script type="module" src="http://localhost:5173/{}"></script>)"#,
             macro_data.entry_point
         )
         .as_str(),
     );
 
     let output = quote! {
-        [vite_embed::EmbeddedFile { data: #html, asset_path: "index.html", compressed: false }].as_slice()
+        fn vite_html_dev() -> &'static str {
+            #html
+        }
     };
 
     TokenStream::from(output)
 }
 
-fn compress(data: &[u8]) -> Vec<u8> {
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
-    encoder.write_all(data).unwrap();
-    let Ok(compressed) = encoder.finish() else {
-            panic!("Couldn't GZIP data");
-        };
-    compressed
+mod dev {
+    use crate::{unwrap_string_lit, verify_sep};
+    use proc_macro::{TokenStream, TokenTree};
+    use std::path::PathBuf;
+
+    pub(super) struct MacroDataDev {
+        pub(super) html_path: PathBuf,
+        pub(super) entry_point: String,
+    }
+
+    pub(super) fn parse_tokens_html(tokens: TokenStream) -> MacroDataDev {
+        let token_vec: Vec<_> = tokens.into_iter().collect();
+
+        match token_vec.as_slice() {
+            [TokenTree::Literal(html_token), TokenTree::Punct(sep1), TokenTree::Literal(entry_point_token)] =>
+            {
+                verify_sep(sep1, (0, 1));
+                let html_path = PathBuf::from(unwrap_string_lit(html_token).replace(
+                    "$CARGO_MANIFEST_DIR",
+                    &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+                ));
+                let entry_point = unwrap_string_lit(entry_point_token);
+                MacroDataDev {
+                    html_path,
+                    entry_point,
+                }
+            }
+            _ => panic!("Expected format 'string literal'"),
+        }
+    }
 }
 
 #[proc_macro]
-pub fn vite_prod(tokens: TokenStream) -> TokenStream {
+pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
+    use prod::{compress, parse_tokens_prod};
+    use quote::quote;
+
     let macro_data = parse_tokens_prod(tokens);
 
-    let Ok(html) = fs::read_to_string(&macro_data.html_path) else {
+    let Ok(html) = std::fs::read_to_string(&macro_data.html_path) else {
         panic!("Couldn't read {:?} as string", macro_data.html_path);
     };
 
-    let Ok(manifest_string) = fs::read_to_string(&macro_data.manifest_path) else {
+    let Ok(manifest_string) = std::fs::read_to_string(&macro_data.manifest_path) else {
         panic!("Couldn't read {:?} as string", macro_data.manifest_path);
     };
 
@@ -149,15 +115,16 @@ pub fn vite_prod(tokens: TokenStream) -> TokenStream {
 
     file_names.push(entry_point["file"].as_str().unwrap());
 
-    let mut inject = format!(
-        r#"<script type="module" src="{}"></script>
-        "#,
-        file_names[0]
+    let html = html.replace(
+        "<!--vite-embed script injection-->",
+        &format!(r#"<script type="module" src="{}"></script>"#, file_names[0]),
     );
+
+    let mut css_inject = String::new();
 
     for i in entry_point["css"].members() {
         file_names.push(i.as_str().unwrap());
-        inject.push_str(&format!(
+        css_inject.push_str(&format!(
             r#"<link rel="stylesheet" href="{}" />
             "#,
             i.as_str().unwrap()
@@ -172,7 +139,7 @@ pub fn vite_prod(tokens: TokenStream) -> TokenStream {
         file_names.push(manifest_json[i.as_str().unwrap()]["file"].as_str().unwrap());
     }
 
-    let html = html.replace("<!--vite-embed injection point-->", &inject);
+    let html = html.replace("<!--vite-embed css injection-->\n", &css_inject);
     let compressed_html = compress(html.as_bytes());
 
     let mut file_datas = Vec::new();
@@ -181,7 +148,7 @@ pub fn vite_prod(tokens: TokenStream) -> TokenStream {
     for i in &file_names {
         let mut file_path = parent_path.to_path_buf();
         file_path.push(i);
-        let Ok(file_data) = fs::read(&file_path) else {
+        let Ok(file_data) = std::fs::read(&file_path) else {
             panic!("Couldn't read asset at {}", file_path.display());
         };
         if file_path.extension().unwrap() == "png" {
@@ -194,7 +161,73 @@ pub fn vite_prod(tokens: TokenStream) -> TokenStream {
         }
     }
 
+    // Append '/' to every item
+    let file_names = file_names
+        .into_iter()
+        .map(|x| std::iter::once('/').chain(x.chars()).collect::<String>());
+
     quote! {
-        [vite_embed::EmbeddedFile {asset_path: "index.html", data: &[#(#compressed_html),*], compressed: true}, #(vite_embed::EmbeddedFile {asset_path: #file_names, data: &[#(#file_datas),*], compressed: #compressed_datas }),*].as_slice()
-    }.into()
+        fn vite_prod(path: &str) -> Option<(&'static [u8], bool)> {
+            match path {
+                "/index.html" => Some((&[#(#compressed_html),*], true)),
+                #(#file_names => Some((&[#(#file_datas),*], #compressed_datas))),*,
+                _ => None
+            }
+        }
+    }
+    .into()
+}
+
+#[cfg(feature = "prod")]
+mod prod {
+    use crate::{unwrap_string_lit, verify_sep};
+    use flate2::{write::GzEncoder, Compression};
+    use proc_macro::{TokenStream, TokenTree};
+    use std::io::Write;
+    use std::path::PathBuf;
+
+    pub(super) struct MacroDataProd {
+        pub(super) manifest_path: PathBuf,
+        pub(super) entry_point: String,
+        pub(super) html_path: PathBuf,
+    }
+
+    pub(super) fn parse_tokens_prod(tokens: TokenStream) -> MacroDataProd {
+        let token_vec: Vec<_> = tokens.into_iter().collect();
+
+        match token_vec.as_slice() {
+            [TokenTree::Literal(manifest_token), TokenTree::Punct(sep1), TokenTree::Literal(entry_point_token), TokenTree::Punct(sep2), TokenTree::Literal(html_token)] =>
+            {
+                for i in [sep1, sep2].into_iter().enumerate() {
+                    verify_sep(i.1, (i.0, i.0 + 1))
+                }
+                let manifest_path = PathBuf::from(unwrap_string_lit(manifest_token).replace(
+                    "$CARGO_MANIFEST_DIR",
+                    &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+                ));
+                let html_path = PathBuf::from(unwrap_string_lit(html_token).replace(
+                    "$CARGO_MANIFEST_DIR",
+                    &std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+                ));
+                let entry_point = unwrap_string_lit(entry_point_token);
+                MacroDataProd {
+                    manifest_path,
+                    entry_point,
+                    html_path,
+                }
+            }
+            _ => {
+                panic!("Expected format 'string literal (path), string literal, string literal (path)'")
+            }
+        }
+    }
+
+    pub(super) fn compress(data: &[u8]) -> Vec<u8> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
+        encoder.write_all(data).unwrap();
+        let Ok(compressed) = encoder.finish() else {
+                panic!("Couldn't GZIP data");
+            };
+        compressed
+    }
 }
