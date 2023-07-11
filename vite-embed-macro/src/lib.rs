@@ -37,7 +37,7 @@ pub fn generate_vite_html_dev(tokens: TokenStream) -> TokenStream {
         "<!--vite-embed script injection-->",
         format!(
             r#"<script type="module" src="http://localhost:5173/@vite/client"></script>
-<script type="module" src="http://localhost:5173/{}"></script>)"#,
+<script type="module" src="http://localhost:5173/{}"></script>"#,
             macro_data.entry_point
         )
         .as_str(),
