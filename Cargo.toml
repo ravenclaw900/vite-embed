@@ -1,2 +1,2 @@
 [workspace]
-members = ["vite-embed", "vite-embed-macro"]
+members = ["vite-embed", "vite-embed-macro", "vite-embed-axum"]

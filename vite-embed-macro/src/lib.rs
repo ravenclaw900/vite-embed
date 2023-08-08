@@ -85,7 +85,7 @@ mod dev {
                 }
             }
             _ => panic!(
-                r#"Expected format generate_vite_html_dev!("/path/to/index.html", "vite-entry-point.tsx")"#
+                r#"Expected format generate_vite_dev!("/path/to/index.html", "vite-entry-point.tsx")"#
             ),
         }
     }
