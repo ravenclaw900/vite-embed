@@ -8,5 +8,6 @@ dev = ["vite-embed-macro/dev", "dep:ureq"]
 prod = ["vite-embed-macro/prod"]
 
 [dependencies]
+mime = "0.3.17"
 ureq = { version = "2.6.2", default-features = false, optional = true }
 vite-embed-macro = { path = "../vite-embed-macro" }
