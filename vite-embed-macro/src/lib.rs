@@ -31,8 +31,8 @@ pub fn generate_vite_dev(tokens: TokenStream) -> TokenStream {
     let macro_data = parse_tokens_html(tokens);
 
     let Ok(html) = std::fs::read_to_string(&macro_data.html_path) else {
-    panic!("Couldn't read {:?} as string", macro_data.html_path)
-};
+        panic!("Couldn't read {:?} as string", macro_data.html_path)
+    };
 
     let html = html.replace(
         "<!--vite-embed script injection-->",
@@ -135,7 +135,7 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
         }
     }
 
-    if let Value::Array(arr) = &entry_point["imports"] {
+    if let Value::Array(arr) = &entry_point["dynamicImports"] {
         for i in arr {
             file_names.push(manifest_json[i.as_str().unwrap()]["file"].as_str().unwrap());
         }
@@ -243,8 +243,8 @@ mod prod {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
         encoder.write_all(data).unwrap();
         let Ok(compressed) = encoder.finish() else {
-                panic!("Couldn't GZIP data");
-            };
+            panic!("Couldn't GZIP data");
+        };
         compressed
     }
 }
