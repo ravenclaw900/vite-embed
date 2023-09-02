@@ -116,7 +116,6 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
     }
 
     let mut file_datas = Vec::new();
-    let mut compressed_datas = Vec::new();
 
     let parent_path = manifest_path.parent().unwrap();
     for (&name, mime) in file_names.iter().zip(mime_types.iter()) {
@@ -127,13 +126,11 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
         };
         match mime.type_() {
             mime_guess::mime::IMAGE | mime_guess::mime::VIDEO => {
-                file_datas.push(file_data);
-                compressed_datas.push(false);
+                file_datas.push((file_data, false));
             }
             _ => {
                 let compressed = compress(&file_data);
-                file_datas.push(compressed);
-                compressed_datas.push(true);
+                file_datas.push((compressed, true));
             }
         }
     }
@@ -150,7 +147,6 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
 
     let file_asts: Vec<_> = file_datas
         .into_iter()
-        .zip(compressed_datas.into_iter())
         .map(|(data, compressed)| {
             if compressed {
                 quote! {
