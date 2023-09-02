@@ -94,7 +94,7 @@ mod dev {
 #[cfg(feature = "prod")]
 #[proc_macro]
 pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
-    use prod::{compress, parse_tokens_prod};
+    use prod::{compress, parse_tokens_prod, read_manifest};
     use quote::quote;
     use serde_json::Value;
 
@@ -108,38 +108,7 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
         panic!("Couldn't parse {:?} as JSON", manifest_path);
     };
 
-    let entry_point = manifest_json
-        .as_object()
-        .unwrap()
-        .values()
-        .find(|&f| {
-            // If it exists, it has to be true
-            f["isEntry"].is_boolean()
-        })
-        .unwrap_or_else(|| panic!("No entry point in manifest.json"));
-
-    // Default file names that won't be part of manifest.json
-    let mut file_names = vec!["index.html", "favicon.ico"];
-
-    file_names.push(entry_point["file"].as_str().unwrap());
-
-    if let Value::Array(arr) = &entry_point["css"] {
-        for i in arr {
-            file_names.push(i.as_str().unwrap());
-        }
-    }
-
-    if let Value::Array(arr) = &entry_point["assets"] {
-        for i in arr {
-            file_names.push(i.as_str().unwrap());
-        }
-    }
-
-    if let Value::Array(arr) = &entry_point["dynamicImports"] {
-        for i in arr {
-            file_names.push(manifest_json[i.as_str().unwrap()]["file"].as_str().unwrap());
-        }
-    }
+    let file_names = read_manifest(&manifest_json);
 
     let mut mime_types = Vec::new();
     for &i in &file_names {
@@ -172,11 +141,7 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
     // Prepend '/' to every item for HTTP paths
     let mut paths: Vec<_> = file_names
         .into_iter()
-        .map(|x| {
-            let mut x = x.to_string();
-            x.insert(0, '/');
-            x
-        })
+        .map(|x| "/".to_string() + x)
         .collect();
 
     // Replace index.html with just / as path
@@ -220,6 +185,7 @@ mod prod {
     use crate::unwrap_string_lit;
     use flate2::{write::GzEncoder, Compression};
     use proc_macro::{TokenStream, TokenTree};
+    use serde_json::Value;
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -246,5 +212,46 @@ mod prod {
             panic!("Couldn't GZIP data");
         };
         compressed
+    }
+
+    pub(super) fn read_manifest(manifest: &Value) -> Vec<&str> {
+        let entry_point = manifest
+            .as_object()
+            .unwrap()
+            .values()
+            .find(|&f| {
+                // If it exists, it has to be true
+                f["isEntry"].is_boolean()
+            })
+            .unwrap_or_else(|| panic!("No entry point in manifest.json"));
+
+        // Default file names that won't be part of manifest.json
+        let mut file_names = vec!["index.html", "favicon.ico"];
+
+        read_manifest_recurse(entry_point, &mut file_names);
+
+        file_names
+    }
+
+    fn read_manifest_recurse<'a>(current: &'a Value, file_names: &mut Vec<&'a str>) {
+        file_names.push(current["file"].as_str().unwrap());
+
+        if let Value::Array(arr) = &current["css"] {
+            for i in arr {
+                file_names.push(i.as_str().unwrap());
+            }
+        }
+
+        if let Value::Array(arr) = &current["assets"] {
+            for i in arr {
+                file_names.push(i.as_str().unwrap());
+            }
+        }
+
+        if let Value::Array(arr) = &current["dynamicImports"] {
+            for i in arr {
+                read_manifest_recurse(i, file_names)
+            }
+        }
     }
 }
