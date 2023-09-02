@@ -142,8 +142,11 @@ pub fn generate_vite_prod(tokens: TokenStream) -> TokenStream {
         .collect();
 
     // Replace index.html with just / as path
-    // index.html should be at index 0 because that's how the Vec was created
-    paths[0] = "/".to_string();
+    // binary_search works because Vec was sorted to dedup it
+    let html_index = paths
+        .binary_search_by(|x| x.as_str().cmp("/index.html"))
+        .unwrap();
+    paths[html_index] = "/".to_string();
 
     let file_asts: Vec<_> = file_datas
         .into_iter()
@@ -224,12 +227,20 @@ mod prod {
         // Default file names that won't be part of manifest.json
         let mut file_names = vec!["index.html", "favicon.ico"];
 
-        read_manifest_recurse(entry_point, &mut file_names);
+        read_manifest_recurse(manifest, entry_point, &mut file_names);
+
+        // Dedup file names (in case one file was referenced multiple times)
+        file_names.sort_unstable();
+        file_names.dedup();
 
         file_names
     }
 
-    fn read_manifest_recurse<'a>(current: &'a Value, file_names: &mut Vec<&'a str>) {
+    fn read_manifest_recurse<'a>(
+        manifest: &'a Value,
+        current: &'a Value,
+        file_names: &mut Vec<&'a str>,
+    ) {
         file_names.push(current["file"].as_str().unwrap());
 
         if let Value::Array(arr) = &current["css"] {
@@ -246,7 +257,14 @@ mod prod {
 
         if let Value::Array(arr) = &current["dynamicImports"] {
             for i in arr {
-                read_manifest_recurse(i, file_names)
+                read_manifest_recurse(manifest, &manifest[i.as_str().unwrap()], file_names)
+            }
+        }
+
+        if let Value::Array(arr) = &current["imports"] {
+            // Remove imports back into main JS file to avoid infinite loops
+            for i in arr.iter().filter(|&x| x.as_str().unwrap() != "index.html") {
+                read_manifest_recurse(manifest, &manifest[i.as_str().unwrap()], file_names)
             }
         }
     }
